@@ -12,7 +12,6 @@
 # Please use with care! I'm not to be held responsible for any damage
 # this software might cause to anyone or anything!
 
-import sys
 import re
 import webbrowser
 import os
@@ -25,11 +24,9 @@ user = ""                   # login name
 password = ""               # password
 gradepath = "noten.html"    # path to store grade html-file
 
-# if len(sys.argv) == 1:
-#     print "Not enough parameters!"
 
 browser = Browser()
-browser.set_handle_robots(False) # ignore robots.txt
+browser.set_handle_robots(False)  # ignore robots.txt
 
 while True:     # trying to load primuss.de
     try:
@@ -46,15 +43,7 @@ print "Logging in..."
 browser.form = list(browser.forms())[0]
 browser['j_username'] = user
 browser['j_password'] = password
-# browser.select_form('AnmeldeForm')
-# browser.form['Nachname'] = nachname
-# browser.form['Vorname'] = vorname
-# browser.form['GebDatum'] = gebdatum
-# browser.form['GebOrt'] = gebort
-# browser.form['MCard'] = mcard
-response = browser.submit()
-
-# print response.read()
+browser.submit()
 
 # if login failed:
 if (re.search("Das eingegebene Passwort ist nicht korrekt.", browser.response().read()) is not None) \
