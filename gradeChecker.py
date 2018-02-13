@@ -5,7 +5,9 @@
 # "Well, if I'm not able to get my exam results, i'm at least making sure I contribute to the server outage!"
 #
 # Author:           Max Blank
-# Last modified:    31.07.2016
+# Last modified:    13.02.2016
+#
+# Adapted to new login process and form layout
 #
 # Please use with care! I'm not to be held responsible for any damage
 # this software might cause to anyone or anything!
@@ -19,21 +21,19 @@ from urllib2 import URLError
 from time import sleep
 
 
-nachname = ""   # last name of student
-vorname = ""    # first name(s) of student
-gebdatum = ""   # birthday of student
-gebort = "" # birthplace of student
-mcard = ""  # badge number of student
+user = ""                   # login name
+password = ""               # password
 gradepath = "noten.html"    # path to store grade html-file
 
-if len(sys.argv) == 1:
-    print "Not enough parameters!"
+# if len(sys.argv) == 1:
+#     print "Not enough parameters!"
 
 browser = Browser()
+browser.set_handle_robots(False) # ignore robots.txt
 
 while True:     # trying to load primuss.de
     try:
-        response = browser.open("https://www1.primuss.de/cgi/Sesam/sesam.pl?FH=fhm")
+        response = browser.open("https://www3.primuss.de/cgi-bin/login/index.pl?FH=fhm")
         break
 
     except URLError:
@@ -43,42 +43,51 @@ while True:     # trying to load primuss.de
 
 # Fill login form
 print "Logging in..."
-browser.select_form('AnmeldeForm')
-browser.form['Nachname'] = nachname
-browser.form['Vorname'] = vorname
-browser.form['GebDatum'] = gebdatum
-browser.form['GebOrt'] = gebort
-browser.form['MCard'] = mcard
-browser.submit()
+browser.form = list(browser.forms())[0]
+browser['j_username'] = user
+browser['j_password'] = password
+# browser.select_form('AnmeldeForm')
+# browser.form['Nachname'] = nachname
+# browser.form['Vorname'] = vorname
+# browser.form['GebDatum'] = gebdatum
+# browser.form['GebOrt'] = gebort
+# browser.form['MCard'] = mcard
+response = browser.submit()
+
+# print response.read()
 
 # if login failed:
-if (re.search('<span class="Fehler">Fehler:</span> Anmeldung fehlerhaft, kein Zugriff!</p>', browser.response().read())
-        is not None):
+if (re.search("Das eingegebene Passwort ist nicht korrekt.", browser.response().read()) is not None) \
+        or (re.search("Der eingegebene Benutzername wurde nicht gefunden.", browser.response().read()) is not None):
     print "Login failed! Check credentials!"
+    exit(1)
 else:
     print "Logged in!"
-    print "Searching grades..."
-    browser.follow_link(text="Services")    # navigate to grade view
-    for form in browser.forms():
-        if form.attrs["action"]=="https://www3.primuss.de/cgi-bin/pg_Notenbekanntgabe/index.pl":
-            browser.form = form
-            break
+    browser.form = list(browser.forms())[0]     # proceed from javascript-warning
+    response = browser.submit()
 
-    browser.submit()
-    browser.select_form('Form')
-    notenurl = "https://www3.primuss.de/cgi-bin/pg_Notenbekanntgabe/showajax.pl?Language=de&Session="
-    sessionid = browser.form['Session']
-    poison = browser.form['Poison']
+    print "Extracting Session ID"
+    browser.select_form("Form1")
+    control = browser.form.find_control("Session")
+    sessionID = control._value
+    control = browser.form.find_control("User")
+    userID = control._value
+
+    print "Opening grade view..."
     while True:
         try:
-            browser.open(notenurl + sessionid + "&Poison=" + poison + "&User=" + mcard + "&FH=fhm&Accept=X")
+            response = browser.open("https://www3.primuss.de/cgi-bin/pg_Notenbekanntgabe/showajax.pl?FH=fhm&Session="
+                                    + sessionID + "&User=" + userID + "&Portal=1")
             break
-
         except URLError:
-            print "Timeout openening grade view! Trying again..."
+            print "Timeout opening grade view! Trying again in 10 seconds..."
             sleep(10)
             pass
 
+if re.search("Wir befinden uns jetzt <b>vor</b> dem Zeitraum der Notenbekanntgabe.", response.read()) is not None:
+    print "Grades not published yet! Try again later!"
+    exit(1)
+else:
     print "Found grades!"
     print "Saving grades..."
     gradefile = open(gradepath, "w+")
@@ -87,3 +96,4 @@ else:
     print "Grades saved!"
     print "Displaying grades..."
     webbrowser.open('file://' + os.path.realpath(gradepath))
+    exit(0)
